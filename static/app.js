@@ -7,6 +7,8 @@ const refreshTreeBtn = document.getElementById("refreshTreeBtn");
 const createBtn = document.getElementById("createBtn");
 const saveBtn = document.getElementById("saveBtn");
 const deleteBtn = document.getElementById("deleteBtn");
+const createFolderBtn = document.getElementById("createFolderBtn");
+const deleteFolderBtn = document.getElementById("deleteFolderBtn");
 
 let activePath = "";
 
@@ -44,8 +46,17 @@ function renderNode(node) {
   const li = document.createElement("li");
 
   if (node.type === "dir") {
-    const label = document.createElement("strong");
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "tree-item";
     label.textContent = `[DIR] ${node.name}`;
+    label.dataset.path = node.path;
+    label.addEventListener("click", () => {
+      activePath = "";
+      pathEl.value = node.path;
+      setStatus(`Выбрана папка: ${node.path}`);
+      loadTree();
+    });
     li.appendChild(label);
 
     if (node.children?.length) {
@@ -178,9 +189,67 @@ async function deleteArticle() {
   await loadTree();
 }
 
+async function createFolder() {
+  const path = normalizePath(pathEl.value);
+  if (!path) {
+    setStatus("Укажи путь папки.", "error");
+    return;
+  }
+
+  const response = await fetch("/api/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    setStatus(data.error || "Не удалось создать папку.", "error");
+    return;
+  }
+
+  activePath = "";
+  pathEl.value = data.path;
+  setStatus(`Папка создана: ${data.path}`);
+  await loadTree();
+}
+
+async function deleteFolder() {
+  const path = normalizePath(pathEl.value);
+  if (!path) {
+    setStatus("Укажи путь папки для удаления.", "error");
+    return;
+  }
+
+  const ok = window.confirm(`Удалить папку "${path}" и всё содержимое?`);
+  if (!ok) {
+    return;
+  }
+
+  const response = await fetch("/api/folder", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+
+  if (!response.ok) {
+    setStatus(data.error || "Не удалось удалить папку.", "error");
+    return;
+  }
+
+  activePath = "";
+  pathEl.value = "";
+  contentEl.value = "";
+  setStatus(`Папка удалена: ${data.path}`);
+  await loadTree();
+}
+
 refreshTreeBtn.addEventListener("click", loadTree);
 createBtn.addEventListener("click", createArticle);
 saveBtn.addEventListener("click", saveArticle);
 deleteBtn.addEventListener("click", deleteArticle);
+createFolderBtn.addEventListener("click", createFolder);
+deleteFolderBtn.addEventListener("click", deleteFolder);
 
 loadTree().catch(() => setStatus("Не удалось загрузить структуру.", "error"));

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path, PurePosixPath
 
 from flask import Flask, jsonify, render_template, request
@@ -12,7 +13,7 @@ DOCS_DIR = BASE_DIR / "docs"
 app = Flask(__name__)
 
 
-def normalize_doc_path(raw_path: str) -> Path:
+def normalize_relative_path(raw_path: str) -> PurePosixPath:
     if not raw_path or not raw_path.strip():
         raise ValueError("Path is required.")
 
@@ -24,15 +25,29 @@ def normalize_doc_path(raw_path: str) -> Path:
     if any(part in {"", ".", ".."} for part in posix_path.parts):
         raise ValueError("Invalid path segments.")
 
-    if posix_path.suffix.lower() != ".md":
-        posix_path = posix_path.with_suffix(".md")
+    return posix_path
 
+
+def resolve_under_docs(posix_path: PurePosixPath) -> Path:
     target = DOCS_DIR.joinpath(*posix_path.parts).resolve()
     docs_root = DOCS_DIR.resolve()
     if os.path.commonpath([str(docs_root), str(target)]) != str(docs_root):
         raise ValueError("Path escapes docs directory.")
-
     return target
+
+
+def normalize_doc_path(raw_path: str) -> Path:
+    posix_path = normalize_relative_path(raw_path)
+    if posix_path.suffix.lower() != ".md":
+        posix_path = posix_path.with_suffix(".md")
+    return resolve_under_docs(posix_path)
+
+
+def normalize_dir_path(raw_path: str) -> Path:
+    posix_path = normalize_relative_path(raw_path)
+    if posix_path.suffix.lower() == ".md":
+        raise ValueError("Folder path must not end with .md.")
+    return resolve_under_docs(posix_path)
 
 
 def to_relative(path: Path) -> str:
@@ -40,41 +55,33 @@ def to_relative(path: Path) -> str:
 
 
 def build_tree() -> list[dict]:
-    root = {"type": "dir", "name": "docs", "path": "", "children": []}
+    def list_children(dir_path: Path) -> list[dict]:
+        children: list[dict] = []
+        for child in sorted(dir_path.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower())):
+            if child.name.startswith("."):
+                continue
+            if child.is_dir():
+                children.append(
+                    {
+                        "type": "dir",
+                        "name": child.name,
+                        "path": child.relative_to(DOCS_DIR).as_posix(),
+                        "children": list_children(child),
+                    }
+                )
+                continue
 
-    for md_file in sorted(DOCS_DIR.rglob("*.md")):
-        rel_path = md_file.relative_to(DOCS_DIR).as_posix()
-        parts = rel_path.split("/")
-        cursor = root
-        current_parts: list[str] = []
+            if child.is_file() and child.suffix.lower() == ".md":
+                children.append(
+                    {
+                        "type": "file",
+                        "name": child.name,
+                        "path": child.relative_to(DOCS_DIR).as_posix(),
+                    }
+                )
+        return children
 
-        for part in parts[:-1]:
-            current_parts.append(part)
-            dir_path = "/".join(current_parts)
-            found = next(
-                (
-                    child
-                    for child in cursor["children"]
-                    if child["type"] == "dir" and child["name"] == part
-                ),
-                None,
-            )
-            if found is None:
-                found = {"type": "dir", "name": part, "path": dir_path, "children": []}
-                cursor["children"].append(found)
-            cursor = found
-
-        cursor["children"].append({"type": "file", "name": parts[-1], "path": rel_path})
-
-    def sort_node(node: dict) -> None:
-        if node["type"] != "dir":
-            return
-        node["children"].sort(key=lambda item: (item["type"] != "dir", item["name"].lower()))
-        for child in node["children"]:
-            sort_node(child)
-
-    sort_node(root)
-    return root["children"]
+    return list_children(DOCS_DIR)
 
 
 @app.get("/")
@@ -162,7 +169,44 @@ def api_delete_article():
     return jsonify({"message": "Article deleted.", "path": to_relative(target)})
 
 
+@app.post("/api/folder")
+def api_create_folder():
+    payload = request.get_json(silent=True) or {}
+    raw_path = payload.get("path", "")
+
+    try:
+        target = normalize_dir_path(raw_path)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if target.exists():
+        return jsonify({"error": "Folder already exists."}), 409
+
+    target.mkdir(parents=True, exist_ok=False)
+    return jsonify({"message": "Folder created.", "path": to_relative(target)}), 201
+
+
+@app.delete("/api/folder")
+def api_delete_folder():
+    payload = request.get_json(silent=True) or {}
+    raw_path = payload.get("path", request.args.get("path", ""))
+
+    try:
+        target = normalize_dir_path(raw_path)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if not target.exists():
+        return jsonify({"error": "Folder does not exist."}), 404
+    if not target.is_dir():
+        return jsonify({"error": "Target path is not a folder."}), 400
+    if target.resolve() == DOCS_DIR.resolve():
+        return jsonify({"error": "Deleting docs root is not allowed."}), 400
+
+    shutil.rmtree(target)
+    return jsonify({"message": "Folder deleted.", "path": to_relative(target)})
+
+
 if __name__ == "__main__":
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     app.run(host="127.0.0.1", port=5000, debug=True)
-

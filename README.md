@@ -3,6 +3,7 @@
 Personal knowledge base with a local web editor:
 - articles are stored as `.md` files in `docs/`;
 - deep nesting is supported via path input (example: `Java/Core/Spring/Beans.md`);
+- folders can be created and deleted directly from the UI;
 - the site is built by MkDocs and published to GitHub Pages via GitHub Actions.
 
 ## 1. Run the local editor
@@ -36,4 +37,3 @@ In the path field you can use values like:
 - `Go/Concurrency/Channels.md`
 
 If `.md` is missing, it is added automatically.
-
