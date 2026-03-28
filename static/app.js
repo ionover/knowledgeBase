@@ -3,13 +3,12 @@ const pathEl = document.getElementById("articlePath");
 const contentEl = document.getElementById("articleContent");
 const previewEl = document.getElementById("preview");
 const statusEl = document.getElementById("status");
+const contextMenuEl = document.getElementById("contextMenu");
 
+const createRootFolderBtn = document.getElementById("createRootFolderBtn");
 const refreshTreeBtn = document.getElementById("refreshTreeBtn");
-const createBtn = document.getElementById("createBtn");
 const saveBtn = document.getElementById("saveBtn");
 const deleteBtn = document.getElementById("deleteBtn");
-const createFolderBtn = document.getElementById("createFolderBtn");
-const deleteFolderBtn = document.getElementById("deleteFolderBtn");
 
 let activePath = "";
 let previewTimer = null;
@@ -22,6 +21,61 @@ function setStatus(message, type = "success") {
 
 function normalizePath(rawPath) {
   return (rawPath || "").trim().replaceAll("\\", "/");
+}
+
+function joinPath(basePath, itemName) {
+  return [normalizePath(basePath), normalizePath(itemName)].filter(Boolean).join("/");
+}
+
+function basename(path) {
+  const normalized = normalizePath(path);
+  const parts = normalized.split("/");
+  return parts[parts.length - 1] || normalized;
+}
+
+function validateNodeName(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) {
+    return { ok: false, error: "Name is required." };
+  }
+  if (trimmed.includes("/") || trimmed.includes("\\")) {
+    return { ok: false, error: "Use a single name without slashes." };
+  }
+  if (trimmed === "." || trimmed === "..") {
+    return { ok: false, error: "Invalid name." };
+  }
+  return { ok: true, value: trimmed };
+}
+
+function hideContextMenu() {
+  contextMenuEl.classList.add("hidden");
+  contextMenuEl.innerHTML = "";
+}
+
+function showContextMenu(clientX, clientY, items) {
+  contextMenuEl.innerHTML = "";
+  for (const item of items) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `context-menu-item${item.danger ? " danger" : ""}`;
+    button.textContent = item.label;
+    button.addEventListener("click", async () => {
+      hideContextMenu();
+      await item.onClick();
+    });
+    contextMenuEl.appendChild(button);
+  }
+
+  contextMenuEl.classList.remove("hidden");
+
+  const menuRect = contextMenuEl.getBoundingClientRect();
+  const maxX = window.innerWidth - menuRect.width - 8;
+  const maxY = window.innerHeight - menuRect.height - 8;
+
+  const left = Math.min(clientX, Math.max(8, maxX));
+  const top = Math.min(clientY, Math.max(8, maxY));
+  contextMenuEl.style.left = `${left}px`;
+  contextMenuEl.style.top = `${top}px`;
 }
 
 async function renderPreview(markdownText = contentEl.value) {
@@ -67,7 +121,7 @@ function renderTree(nodes) {
   treeEl.innerHTML = "";
 
   if (!nodes.length) {
-    treeEl.textContent = "No articles yet. Create one in the editor.";
+    treeEl.textContent = "No articles yet. Create a root folder to begin.";
     return;
   }
 
@@ -82,18 +136,40 @@ function renderNode(node) {
   const li = document.createElement("li");
 
   if (node.type === "dir") {
-    const label = document.createElement("button");
-    label.type = "button";
-    label.className = "tree-item";
-    label.textContent = `[DIR] ${node.name}`;
-    label.dataset.path = node.path;
-    label.addEventListener("click", () => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tree-item";
+    button.textContent = `[DIR] ${node.name}`;
+    button.dataset.path = node.path;
+
+    button.addEventListener("click", () => {
       activePath = "";
       pathEl.value = node.path;
       setStatus(`Folder selected: ${node.path}`);
       loadTree();
     });
-    li.appendChild(label);
+
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      pathEl.value = node.path;
+      showContextMenu(event.clientX, event.clientY, [
+        {
+          label: "Create folder",
+          onClick: () => createFolderPrompt(node.path),
+        },
+        {
+          label: "Create article",
+          onClick: () => createArticlePrompt(node.path),
+        },
+        {
+          label: "Delete folder",
+          danger: true,
+          onClick: () => deleteFolderByPath(node.path),
+        },
+      ]);
+    });
+
+    li.appendChild(button);
 
     if (node.children?.length) {
       const childUl = document.createElement("ul");
@@ -105,22 +181,102 @@ function renderNode(node) {
     return li;
   }
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "tree-item";
-  btn.textContent = node.name;
-  btn.dataset.path = node.path;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "tree-item";
+  button.textContent = node.name;
+  button.dataset.path = node.path;
 
   if (node.path === activePath) {
-    btn.classList.add("active");
+    button.classList.add("active");
   }
 
-  btn.addEventListener("click", async () => {
+  button.addEventListener("click", async () => {
     await loadArticle(node.path);
   });
 
-  li.appendChild(btn);
+  button.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: "Open article",
+        onClick: () => loadArticle(node.path),
+      },
+      {
+        label: "Delete article",
+        danger: true,
+        onClick: () => deleteArticleByPath(node.path),
+      },
+    ]);
+  });
+
+  li.appendChild(button);
   return li;
+}
+
+async function apiCreateArticle(path, content) {
+  const response = await fetch("/api/article", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not create article.");
+  }
+  return data;
+}
+
+async function apiUpdateArticle(path, content) {
+  const response = await fetch("/api/article", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not save article.");
+  }
+  return data;
+}
+
+async function apiDeleteArticle(path) {
+  const response = await fetch("/api/article", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not delete article.");
+  }
+  return data;
+}
+
+async function apiCreateFolder(path) {
+  const response = await fetch("/api/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not create folder.");
+  }
+  return data;
+}
+
+async function apiDeleteFolder(path) {
+  const response = await fetch("/api/folder", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not delete folder.");
+  }
+  return data;
 }
 
 async function loadArticle(path) {
@@ -141,34 +297,6 @@ async function loadArticle(path) {
   await loadTree();
 }
 
-async function createArticle() {
-  const path = normalizePath(pathEl.value);
-  const content = contentEl.value;
-
-  if (!path) {
-    setStatus("Enter article path.", "error");
-    return;
-  }
-
-  const response = await fetch("/api/article", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, content }),
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    setStatus(data.error || "Could not create article.", "error");
-    return;
-  }
-
-  activePath = data.path;
-  pathEl.value = data.path;
-  setStatus(`Article created: ${data.path}`);
-  await renderPreview(content);
-  await loadTree();
-}
-
 async function saveArticle() {
   const path = normalizePath(pathEl.value);
   const content = contentEl.value;
@@ -178,23 +306,16 @@ async function saveArticle() {
     return;
   }
 
-  const response = await fetch("/api/article", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, content }),
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    setStatus(data.error || "Could not save article.", "error");
-    return;
+  try {
+    const data = await apiUpdateArticle(path, content);
+    activePath = data.path;
+    pathEl.value = data.path;
+    setStatus(`Article saved: ${data.path}`);
+    await renderPreview(content);
+    await loadTree();
+  } catch (error) {
+    setStatus(error.message, "error");
   }
-
-  activePath = data.path;
-  pathEl.value = data.path;
-  setStatus(`Article saved: ${data.path}`);
-  await renderPreview(content);
-  await loadTree();
 }
 
 async function deleteArticle() {
@@ -203,99 +324,152 @@ async function deleteArticle() {
     setStatus("Enter article path to delete.", "error");
     return;
   }
+  await deleteArticleByPath(path);
+}
 
-  const ok = window.confirm(`Delete article "${path}"?`);
+async function deleteArticleByPath(path) {
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath) {
+    setStatus("Enter article path to delete.", "error");
+    return;
+  }
+
+  const ok = window.confirm(`Delete article "${normalizedPath}"?`);
   if (!ok) {
     return;
   }
 
-  const response = await fetch("/api/article", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    setStatus(data.error || "Could not delete article.", "error");
-    return;
+  try {
+    const data = await apiDeleteArticle(normalizedPath);
+    if (activePath === normalizedPath) {
+      activePath = "";
+      pathEl.value = "";
+      contentEl.value = "";
+      await renderPreview("");
+    }
+    setStatus(`Article deleted: ${data.path}`);
+    await loadTree();
+  } catch (error) {
+    setStatus(error.message, "error");
   }
-
-  activePath = "";
-  pathEl.value = "";
-  contentEl.value = "";
-  setStatus(`Article deleted: ${data.path}`);
-  await renderPreview("");
-  await loadTree();
 }
 
-async function createFolder() {
-  const path = normalizePath(pathEl.value);
-  if (!path) {
-    setStatus("Enter folder path.", "error");
-    return;
-  }
-
-  const response = await fetch("/api/folder", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    setStatus(data.error || "Could not create folder.", "error");
-    return;
-  }
-
-  activePath = "";
-  pathEl.value = data.path;
-  setStatus(`Folder created: ${data.path}`);
-  await loadTree();
+async function createRootFolder() {
+  await createFolderPrompt("");
 }
 
-async function deleteFolder() {
-  const path = normalizePath(pathEl.value);
-  if (!path) {
+async function createFolderPrompt(parentPath) {
+  const rawName = window.prompt("Folder name:");
+  const validation = validateNodeName(rawName);
+  if (!rawName) {
+    return;
+  }
+  if (!validation.ok) {
+    setStatus(validation.error, "error");
+    return;
+  }
+
+  const fullPath = joinPath(parentPath, validation.value);
+  try {
+    const data = await apiCreateFolder(fullPath);
+    activePath = "";
+    pathEl.value = data.path;
+    setStatus(`Folder created: ${data.path}`);
+    await loadTree();
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function createArticlePrompt(parentPath) {
+  const rawName = window.prompt("Article name (without .md is allowed):");
+  const validation = validateNodeName(rawName);
+  if (!rawName) {
+    return;
+  }
+  if (!validation.ok) {
+    setStatus(validation.error, "error");
+    return;
+  }
+
+  let articleName = validation.value;
+  if (!articleName.toLowerCase().endsWith(".md")) {
+    articleName = `${articleName}.md`;
+  }
+  const fullPath = joinPath(parentPath, articleName);
+
+  const title = basename(articleName).replace(/\.md$/i, "");
+  const initialContent = `# ${title}\n\n`;
+  try {
+    const data = await apiCreateArticle(fullPath, initialContent);
+    activePath = data.path;
+    pathEl.value = data.path;
+    contentEl.value = initialContent;
+    setStatus(`Article created: ${data.path}`);
+    await renderPreview(initialContent);
+    await loadTree();
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function deleteFolderByPath(path) {
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath) {
     setStatus("Enter folder path to delete.", "error");
     return;
   }
 
-  const ok = window.confirm(`Delete folder "${path}" and all contents?`);
+  const ok = window.confirm(`Delete folder "${normalizedPath}" and all contents?`);
   if (!ok) {
     return;
   }
 
-  const response = await fetch("/api/folder", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    setStatus(data.error || "Could not delete folder.", "error");
-    return;
+  try {
+    const data = await apiDeleteFolder(normalizedPath);
+    const openedPath = normalizePath(pathEl.value);
+    if (openedPath && (openedPath === normalizedPath || openedPath.startsWith(`${normalizedPath}/`))) {
+      activePath = "";
+      pathEl.value = "";
+      contentEl.value = "";
+      await renderPreview("");
+    }
+    setStatus(`Folder deleted: ${data.path}`);
+    await loadTree();
+  } catch (error) {
+    setStatus(error.message, "error");
   }
-
-  activePath = "";
-  pathEl.value = "";
-  contentEl.value = "";
-  setStatus(`Folder deleted: ${data.path}`);
-  await renderPreview("");
-  await loadTree();
 }
 
 refreshTreeBtn.addEventListener("click", loadTree);
-createBtn.addEventListener("click", createArticle);
+createRootFolderBtn.addEventListener("click", createRootFolder);
 saveBtn.addEventListener("click", saveArticle);
 deleteBtn.addEventListener("click", deleteArticle);
-createFolderBtn.addEventListener("click", createFolder);
-deleteFolderBtn.addEventListener("click", deleteFolder);
 contentEl.addEventListener("input", schedulePreview);
+
+treeEl.addEventListener("contextmenu", (event) => {
+  if (event.target.closest(".tree-item")) {
+    return;
+  }
+  event.preventDefault();
+  showContextMenu(event.clientX, event.clientY, [
+    {
+      label: "Create root folder",
+      onClick: createRootFolder,
+    },
+  ]);
+});
+
+document.addEventListener("click", hideContextMenu);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideContextMenu();
+  }
+});
+window.addEventListener("resize", hideContextMenu);
+window.addEventListener("scroll", hideContextMenu, true);
 
 loadTree().catch(() => setStatus("Could not load tree.", "error"));
 renderPreview("").catch(() => {
   previewEl.innerHTML = '<p class="preview-placeholder">Preview error.</p>';
 });
-

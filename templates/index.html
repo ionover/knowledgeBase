@@ -16,7 +16,10 @@
     <aside class="panel">
       <div class="panel-head">
         <h2>Structure</h2>
-        <button id="refreshTreeBtn" type="button">Refresh</button>
+        <div class="panel-head-actions">
+          <button id="createRootFolderBtn" type="button">Create root folder</button>
+          <button id="refreshTreeBtn" type="button">Refresh</button>
+        </div>
       </div>
       <div id="tree" class="tree"></div>
     </aside>
@@ -35,11 +38,8 @@
       </div>
 
       <div class="actions">
-        <button id="createBtn" type="button">Create article</button>
         <button id="saveBtn" type="button">Save changes</button>
         <button id="deleteBtn" type="button" class="danger">Delete article</button>
-        <button id="createFolderBtn" type="button">Create folder</button>
-        <button id="deleteFolderBtn" type="button" class="danger">Delete folder</button>
       </div>
 
       <p class="hint">To publish to GitHub Pages, commit and push your changes.</p>
@@ -47,7 +47,8 @@
     </section>
   </main>
 
+  <div id="contextMenu" class="context-menu hidden"></div>
+
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
-

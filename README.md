@@ -3,7 +3,7 @@
 Personal knowledge base with a local web editor:
 - articles are stored as `.md` files in `docs/`;
 - deep nesting is supported via path input (example: `Java/Core/Spring/Beans.md`);
-- folders can be created and deleted directly from the UI;
+- folders and new articles can be created from the tree context menu (right click);
 - Markdown preview is available directly in the editor;
 - the site is built by MkDocs and published to GitHub Pages via GitHub Actions.
 
