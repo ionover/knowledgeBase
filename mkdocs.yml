@@ -1,11 +1,21 @@
 site_name: Personal Knowledge Base
-site_description: Личная база знаний
+site_description: Personal knowledge base
+site_url: https://ionover.github.io/knowledgeBase/
 docs_dir: docs
 site_dir: site
 
 theme:
   name: material
   language: ru
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
 
 plugins:
   - search
