@@ -114,10 +114,55 @@ textarea {
   padding: 10px;
 }
 
+.editor-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 460px;
+}
+
 textarea {
-  min-height: 420px;
+  min-height: 460px;
   resize: vertical;
   line-height: 1.45;
+}
+
+.preview-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  overflow: auto;
+  background: #fcfdff;
+}
+
+.preview-placeholder {
+  color: var(--muted);
+  margin: 0;
+}
+
+.preview-panel h1,
+.preview-panel h2,
+.preview-panel h3,
+.preview-panel h4 {
+  margin-top: 0.9em;
+}
+
+.preview-panel p,
+.preview-panel ul,
+.preview-panel ol {
+  line-height: 1.5;
+}
+
+.preview-panel pre,
+.preview-panel code {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.preview-panel pre {
+  background: #f2f6fb;
+  padding: 10px;
+  border-radius: 8px;
+  overflow: auto;
 }
 
 .actions {
@@ -173,8 +218,12 @@ button.danger {
     grid-template-columns: 1fr;
   }
 
+  .editor-split {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
   textarea {
     min-height: 300px;
   }
 }
-

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,37 +9,40 @@
 <body>
   <header class="topbar">
     <h1>Knowledge Base Editor</h1>
-    <p>Локальное управление статьями для MkDocs/GitHub Pages</p>
+    <p>Local article management for MkDocs and GitHub Pages.</p>
   </header>
 
   <main class="layout">
     <aside class="panel">
       <div class="panel-head">
-        <h2>Структура</h2>
-        <button id="refreshTreeBtn" type="button">Обновить</button>
+        <h2>Structure</h2>
+        <button id="refreshTreeBtn" type="button">Refresh</button>
       </div>
       <div id="tree" class="tree"></div>
     </aside>
 
     <section class="panel editor-panel">
       <div class="editor-top">
-        <label for="articlePath">Путь статьи (например: <code>Java/Collections/List</code>)</label>
+        <label for="articlePath">Article path (example: <code>Java/Collections/List</code>)</label>
         <input id="articlePath" type="text" placeholder="Java/Collections/List.md">
       </div>
 
-      <textarea id="articleContent" placeholder="# Заголовок&#10;&#10;Текст статьи"></textarea>
-
-      <div class="actions">
-        <button id="createBtn" type="button">Создать статью</button>
-        <button id="saveBtn" type="button">Сохранить изменения</button>
-        <button id="deleteBtn" type="button" class="danger">Удалить статью</button>
-        <button id="createFolderBtn" type="button">Создать папку</button>
-        <button id="deleteFolderBtn" type="button" class="danger">Удалить папку</button>
+      <div class="editor-split">
+        <textarea id="articleContent" placeholder="# Title&#10;&#10;Article text"></textarea>
+        <article id="preview" class="preview-panel">
+          <p class="preview-placeholder">Markdown preview will appear here.</p>
+        </article>
       </div>
 
-      <p class="hint">
-        Для публикации в GitHub Pages: зафиксируй изменения через git и отправь в репозиторий.
-      </p>
+      <div class="actions">
+        <button id="createBtn" type="button">Create article</button>
+        <button id="saveBtn" type="button">Save changes</button>
+        <button id="deleteBtn" type="button" class="danger">Delete article</button>
+        <button id="createFolderBtn" type="button">Create folder</button>
+        <button id="deleteFolderBtn" type="button" class="danger">Delete folder</button>
+      </div>
+
+      <p class="hint">To publish to GitHub Pages, commit and push your changes.</p>
       <p id="status" class="status"></p>
     </section>
   </main>
@@ -47,3 +50,4 @@
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
+

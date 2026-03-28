@@ -1,6 +1,7 @@
 const treeEl = document.getElementById("tree");
 const pathEl = document.getElementById("articlePath");
 const contentEl = document.getElementById("articleContent");
+const previewEl = document.getElementById("preview");
 const statusEl = document.getElementById("status");
 
 const refreshTreeBtn = document.getElementById("refreshTreeBtn");
@@ -11,6 +12,8 @@ const createFolderBtn = document.getElementById("createFolderBtn");
 const deleteFolderBtn = document.getElementById("deleteFolderBtn");
 
 let activePath = "";
+let previewTimer = null;
+let previewRequestSeq = 0;
 
 function setStatus(message, type = "success") {
   statusEl.textContent = message;
@@ -19,6 +22,39 @@ function setStatus(message, type = "success") {
 
 function normalizePath(rawPath) {
   return (rawPath || "").trim().replaceAll("\\", "/");
+}
+
+async function renderPreview(markdownText = contentEl.value) {
+  const seq = ++previewRequestSeq;
+  const response = await fetch("/api/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: markdownText }),
+  });
+  const data = await response.json();
+
+  if (seq !== previewRequestSeq) {
+    return;
+  }
+
+  if (!response.ok) {
+    previewEl.innerHTML = '<p class="preview-placeholder">Preview error.</p>';
+    return;
+  }
+
+  const html = (data.html || "").trim();
+  previewEl.innerHTML = html || '<p class="preview-placeholder">Preview is empty.</p>';
+}
+
+function schedulePreview() {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+  }
+  previewTimer = setTimeout(() => {
+    renderPreview().catch(() => {
+      previewEl.innerHTML = '<p class="preview-placeholder">Preview error.</p>';
+    });
+  }, 250);
 }
 
 async function loadTree() {
@@ -31,7 +67,7 @@ function renderTree(nodes) {
   treeEl.innerHTML = "";
 
   if (!nodes.length) {
-    treeEl.textContent = "Пока нет статей. Создай первую справа.";
+    treeEl.textContent = "No articles yet. Create one in the editor.";
     return;
   }
 
@@ -54,7 +90,7 @@ function renderNode(node) {
     label.addEventListener("click", () => {
       activePath = "";
       pathEl.value = node.path;
-      setStatus(`Выбрана папка: ${node.path}`);
+      setStatus(`Folder selected: ${node.path}`);
       loadTree();
     });
     li.appendChild(label);
@@ -93,14 +129,15 @@ async function loadArticle(path) {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось открыть статью.", "error");
+    setStatus(data.error || "Could not open article.", "error");
     return;
   }
 
   activePath = data.path;
   pathEl.value = data.path;
   contentEl.value = data.content;
-  setStatus(`Открыта статья: ${data.path}`);
+  setStatus(`Opened article: ${data.path}`);
+  await renderPreview(data.content);
   await loadTree();
 }
 
@@ -109,7 +146,7 @@ async function createArticle() {
   const content = contentEl.value;
 
   if (!path) {
-    setStatus("Укажи путь статьи.", "error");
+    setStatus("Enter article path.", "error");
     return;
   }
 
@@ -121,13 +158,14 @@ async function createArticle() {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось создать статью.", "error");
+    setStatus(data.error || "Could not create article.", "error");
     return;
   }
 
   activePath = data.path;
   pathEl.value = data.path;
-  setStatus(`Статья создана: ${data.path}`);
+  setStatus(`Article created: ${data.path}`);
+  await renderPreview(content);
   await loadTree();
 }
 
@@ -136,7 +174,7 @@ async function saveArticle() {
   const content = contentEl.value;
 
   if (!path) {
-    setStatus("Укажи путь статьи.", "error");
+    setStatus("Enter article path.", "error");
     return;
   }
 
@@ -148,24 +186,25 @@ async function saveArticle() {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось сохранить статью.", "error");
+    setStatus(data.error || "Could not save article.", "error");
     return;
   }
 
   activePath = data.path;
   pathEl.value = data.path;
-  setStatus(`Статья сохранена: ${data.path}`);
+  setStatus(`Article saved: ${data.path}`);
+  await renderPreview(content);
   await loadTree();
 }
 
 async function deleteArticle() {
   const path = normalizePath(pathEl.value);
   if (!path) {
-    setStatus("Укажи путь статьи для удаления.", "error");
+    setStatus("Enter article path to delete.", "error");
     return;
   }
 
-  const ok = window.confirm(`Удалить статью "${path}"?`);
+  const ok = window.confirm(`Delete article "${path}"?`);
   if (!ok) {
     return;
   }
@@ -178,21 +217,22 @@ async function deleteArticle() {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось удалить статью.", "error");
+    setStatus(data.error || "Could not delete article.", "error");
     return;
   }
 
   activePath = "";
   pathEl.value = "";
   contentEl.value = "";
-  setStatus(`Статья удалена: ${data.path}`);
+  setStatus(`Article deleted: ${data.path}`);
+  await renderPreview("");
   await loadTree();
 }
 
 async function createFolder() {
   const path = normalizePath(pathEl.value);
   if (!path) {
-    setStatus("Укажи путь папки.", "error");
+    setStatus("Enter folder path.", "error");
     return;
   }
 
@@ -204,24 +244,24 @@ async function createFolder() {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось создать папку.", "error");
+    setStatus(data.error || "Could not create folder.", "error");
     return;
   }
 
   activePath = "";
   pathEl.value = data.path;
-  setStatus(`Папка создана: ${data.path}`);
+  setStatus(`Folder created: ${data.path}`);
   await loadTree();
 }
 
 async function deleteFolder() {
   const path = normalizePath(pathEl.value);
   if (!path) {
-    setStatus("Укажи путь папки для удаления.", "error");
+    setStatus("Enter folder path to delete.", "error");
     return;
   }
 
-  const ok = window.confirm(`Удалить папку "${path}" и всё содержимое?`);
+  const ok = window.confirm(`Delete folder "${path}" and all contents?`);
   if (!ok) {
     return;
   }
@@ -234,14 +274,15 @@ async function deleteFolder() {
   const data = await response.json();
 
   if (!response.ok) {
-    setStatus(data.error || "Не удалось удалить папку.", "error");
+    setStatus(data.error || "Could not delete folder.", "error");
     return;
   }
 
   activePath = "";
   pathEl.value = "";
   contentEl.value = "";
-  setStatus(`Папка удалена: ${data.path}`);
+  setStatus(`Folder deleted: ${data.path}`);
+  await renderPreview("");
   await loadTree();
 }
 
@@ -251,5 +292,10 @@ saveBtn.addEventListener("click", saveArticle);
 deleteBtn.addEventListener("click", deleteArticle);
 createFolderBtn.addEventListener("click", createFolder);
 deleteFolderBtn.addEventListener("click", deleteFolder);
+contentEl.addEventListener("input", schedulePreview);
 
-loadTree().catch(() => setStatus("Не удалось загрузить структуру.", "error"));
+loadTree().catch(() => setStatus("Could not load tree.", "error"));
+renderPreview("").catch(() => {
+  previewEl.innerHTML = '<p class="preview-placeholder">Preview error.</p>';
+});
+

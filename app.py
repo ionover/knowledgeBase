@@ -5,10 +5,18 @@ import shutil
 from pathlib import Path, PurePosixPath
 
 from flask import Flask, jsonify, render_template, request
+import markdown as md
 
 
 BASE_DIR = Path(__file__).resolve().parent
 DOCS_DIR = BASE_DIR / "docs"
+MARKDOWN_EXTENSIONS = [
+    "admonition",
+    "toc",
+    "tables",
+    "fenced_code",
+    "codehilite",
+]
 
 app = Flask(__name__)
 
@@ -205,6 +213,18 @@ def api_delete_folder():
 
     shutil.rmtree(target)
     return jsonify({"message": "Folder deleted.", "path": to_relative(target)})
+
+
+@app.post("/api/preview")
+def api_preview():
+    payload = request.get_json(silent=True) or {}
+    content = payload.get("content", "")
+    rendered = md.markdown(
+        content,
+        extensions=MARKDOWN_EXTENSIONS,
+        output_format="html5",
+    )
+    return jsonify({"html": rendered})
 
 
 if __name__ == "__main__":
