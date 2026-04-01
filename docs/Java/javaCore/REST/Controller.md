@@ -1,20 +1,21 @@
 # Controller
 
-## Для чего нужны ?
+## Для чего нужен @Controller ?
 
-Аннотации RestController и Controller нужны чтобы
+Аннотация Controller используется для регистрации обработчиков http-запросов. Звено, которое принимает HTTP-запросы,
+обрабатывает их и возвращает либо данные
 
 ## Самое важное
 
+Это class-level аннотация, которая содержит аннотацию Component. Класс-контроллер выглядит как обычный POJO, с
+методами-обработчиками и аннотациями. 
+Если добавить @ResponseBody - то вместо текстового представление которое за частую HTML страница - будем отправлять текст, либо JSON XML.
 
+# RestController
 
-## Информация:
-
-
-## Грабли
-
-
-## Дополнения
+По сути @Controller + RestController
 
 ## Интересные статьи
+
+[Аннотации @Controller](https://javarush.com/quests/lectures/ru.javarush.java.spring.lecture.level07.lecture03)
 
