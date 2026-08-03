@@ -30,4 +30,4 @@ JOIN table2 ON t1.id = table2.id;
 - `FULL OUTER JOIN == FULL JOIN`
 - `LEFT OUTER JOIN == LEFT JOIN`
 
-![joins.jpg](joins.jpg)
+![joins](joins.jpeg)

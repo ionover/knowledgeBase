@@ -1,7 +1,7 @@
 # SQL
 
 - [ ] Индексы (b-tree, составные)
-- [ ] JOIN и подзапросы
+- [x] JOIN и подзапросы
 - [ ] GROUP BY / HAVNG
 - [ ] VIEWS
 - [ ] CONSTAINTS
