@@ -1,6 +1,6 @@
 # SQL
 
-- [ ] Индексы (b-tree, составные)
+- [x] Индексы (b-tree, составные)
 - [x] JOIN и подзапросы
 - [ ] GROUP BY / HAVNG
 - [ ] VIEWS
