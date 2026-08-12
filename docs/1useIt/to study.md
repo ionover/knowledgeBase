@@ -2,11 +2,11 @@
 
 - [x] Индексы (b-tree, составные)
 - [x] JOIN и подзапросы
-- [ ] GROUP BY / HAVNG
-- [ ] VIEWS
-- [ ] CONSTAINTS
-- [ ] DATETIME. TIMESTAMP
-- [ ] EXPLAIN
+- [x] GROUP BY / HAVNG
+- [x] VIEWS
+- [x] CONSTAINTS
+- [x] DATETIME. TIMESTAMP
+- [x] EXPLAIN
 
 # Память и GC
 
