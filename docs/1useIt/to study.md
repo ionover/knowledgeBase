@@ -18,11 +18,11 @@
 
 # Паттерны проектирования
 
-- [ ] Singleton
-- [ ] Facory
-- [ ] Strategy
-- [ ] Builder
-- [ ] Prototype
+- [x] Singleton
+- [x] Factory
+- [x] Strategy
+- [x] Builder
+- [x] Prototype
 
 # Коллекции
 
